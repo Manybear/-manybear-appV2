@@ -834,7 +834,7 @@ function doPrint(){
   const old=document.getElementById('printArea'); if(old) old.remove();
   const div=document.createElement('div');
   div.id='printArea';
-  div.style.cssText='position:fixed;top:0;left:0;width:100%;background:#fff;z-index:9999;padding:0;display:none';
+  div.style.cssText='position:static;width:100%;background:#fff;z-index:9999;padding:0;display:none';
 
   const css=`<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
