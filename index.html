@@ -343,7 +343,8 @@ tr:hover td{background:#fafafa}
     <div>
       <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer"><input type="checkbox" id="pdfDash" checked style="width:18px;height:18px;accent-color:var(--purple)"> Dashboard สรุปภาพรวม</label>
       <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer"><input type="checkbox" id="pdfTasks" checked style="width:18px;height:18px;accent-color:var(--purple)"> รายการงานทั้งหมด</label>
-      <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer"><input type="checkbox" id="pdfHistory" style="width:18px;height:18px;accent-color:var(--purple)"> History รายเดือน</label>
+      <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0 0;cursor:pointer;padding-left:28px"><input type="checkbox" id="pdfIgnoreFilter" checked style="width:18px;height:18px;accent-color:var(--purple)"> <span style="font-size:13px;color:#666">แสดงทั้งหมด (ไม่ใช้ตัวกรองที่ค้างไว้)</span></label>
+      <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #f0f0f0;cursor:pointer"><input type="checkbox" id="pdfHistory" style="width:18px;height:18px;accent-color:var(--purple)"> History รายเดือน</label>
     </div>
     <div class="modal-btns">
       <button class="btn btn-ghost" onclick="document.getElementById('pdfModal').classList.remove('open')">ยกเลิก</button>
@@ -825,8 +826,9 @@ function doPrint(){
   const showDash=document.getElementById('pdfDash').checked;
   const showTasks=document.getElementById('pdfTasks').checked;
   const showHist=document.getElementById('pdfHistory').checked;
-  const filteredTasks=getFilteredTasks();
-  const filterLabel=buildFilterLabel();
+  const ignoreFilter=document.getElementById('pdfIgnoreFilter').checked;
+  const filteredTasks=ignoreFilter ? tasks.slice() : getFilteredTasks();
+  const filterLabel=ignoreFilter ? 'แสดงทั้งหมด (ไม่ใช้ตัวกรอง)' : buildFilterLabel();
   const printDate=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
 
   const old=document.getElementById('printArea'); if(old) old.remove();
