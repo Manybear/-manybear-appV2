@@ -43,6 +43,10 @@ nav .logo{font-size:18px;font-weight:700;letter-spacing:1px;flex:1}
 .progress-bar{height:10px;border-radius:99px;background:var(--purple);transition:.4s}
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13px}
+.sticky-col{position:sticky;left:0;box-shadow:2px 0 5px rgba(0,0,0,.08)}
+th.sticky-col{background:var(--purple);z-index:6;cursor:default}
+td.sticky-col{background:#fff;z-index:5}
+tr:nth-child(even) td.sticky-col{background:#f9f9ff}
 th{background:var(--purple);color:#fff;padding:10px 12px;text-align:left;white-space:nowrap;cursor:pointer;user-select:none}
 th:hover{background:var(--purple-dark)}
 th .sort-icon{font-size:10px;margin-left:4px;opacity:.7}
@@ -198,6 +202,7 @@ tr:hover td{background:#fafafa}
     <div class="tbl-wrap">
       <table>
         <thead><tr>
+          <th class="sticky-col">จัดการ</th>
           <th onclick="sortBy('index')"># <span class="sort-icon" id="si-index"></span></th>
           <th onclick="sortBy('name')">ชื่องาน <span class="sort-icon" id="si-name"></span></th>
           <th>หมวด</th>
@@ -211,7 +216,6 @@ tr:hover td{background:#fafafa}
           <th>ไฟล์/รูป</th>
           <th onclick="sortBy('completedAt')">เสร็จจริงวันที่ <span class="sort-icon" id="si-completedAt"></span></th>
           <th>หมายเหตุ</th>
-          <th>จัดการ</th>
         </tr></thead>
         <tbody id="taskTable"></tbody>
       </table>
@@ -283,7 +287,7 @@ tr:hover td{background:#fafafa}
     <div class="form-2col">
       <div class="form-row">
         <label>สถานะ</label>
-        <select id="fStatus">
+        <select id="fStatus" onchange="handleStatusChange()">
           <option>ยังไม่เริ่ม</option><option>วางแผน</option>
           <option>เริ่มต้น</option><option>กำลังทำ</option><option>เสร็จสิ้น</option>
         </select>
@@ -306,7 +310,7 @@ tr:hover td{background:#fafafa}
       </div>
     </div>
     <div class="form-row">
-      <label>เปอร์เซนต์งาน: <span id="fPctLbl">0</span>%</label>
+      <label>เปอร์เซนต์งาน: <span id="fPctLbl">0</span>% <span id="fPctLockNote" style="display:none;color:var(--green);font-weight:400">(ล็อกไว้ที่ 100% เพราะสถานะเสร็จสิ้น)</span></label>
       <input type="range" id="fPct" min="0" max="100" value="0" oninput="document.getElementById('fPctLbl').textContent=this.value">
     </div>
     <div class="form-row">
@@ -344,6 +348,7 @@ tr:hover td{background:#fafafa}
       <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer"><input type="checkbox" id="pdfDash" checked style="width:18px;height:18px;accent-color:var(--purple)"> Dashboard สรุปภาพรวม</label>
       <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f0f0f0;cursor:pointer"><input type="checkbox" id="pdfTasks" checked style="width:18px;height:18px;accent-color:var(--purple)"> รายการงานทั้งหมด</label>
       <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0 0;cursor:pointer;padding-left:28px"><input type="checkbox" id="pdfIgnoreFilter" checked style="width:18px;height:18px;accent-color:var(--purple)"> <span style="font-size:13px;color:#666">แสดงทั้งหมด (ไม่ใช้ตัวกรองที่ค้างไว้)</span></label>
+      <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:6px 0 10px;cursor:pointer;padding-left:28px"><input type="checkbox" id="pdfFullNote" style="width:18px;height:18px;accent-color:var(--purple)"> <span style="font-size:13px;color:#666">รวมหมายเหตุแบบเต็ม (เพิ่มหน้าท้ายเอกสาร)</span></label>
       <label class="pdf-option" style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #f0f0f0;cursor:pointer"><input type="checkbox" id="pdfHistory" style="width:18px;height:18px;accent-color:var(--purple)"> History รายเดือน</label>
     </div>
     <div class="modal-btns">
@@ -508,6 +513,24 @@ function sortBy(col){
   if(icon) icon.textContent=sortDir===1?'▲':'▼';
   renderTasks();
 }
+function applySort(list){
+  const priOrder={'ด่วน':0,'สูง':1,'ปานกลาง':2,'ต่ำ':3};
+  const statOrder={'ยังไม่เริ่ม':0,'วางแผน':1,'เริ่มต้น':2,'กำลังทำ':3,'เสร็จสิ้น':4};
+  list.sort((a,b)=>{
+    let va,vb;
+    if(sortCol==='index'){va=tasks.indexOf(a);vb=tasks.indexOf(b);}
+    else if(sortCol==='priority'){va=priOrder[a.priority]??9;vb=priOrder[b.priority]??9;}
+    else if(sortCol==='status'){va=statOrder[a.status]??9;vb=statOrder[b.status]??9;}
+    else if(sortCol==='percent'){va=a.percent||0;vb=b.percent||0;}
+    else if(sortCol==='deadline'||sortCol==='startDate'||sortCol==='completedAt'){
+      va=a[sortCol]?new Date(a[sortCol]).getTime():0;
+      vb=b[sortCol]?new Date(b[sortCol]).getTime():0;
+    }
+    else{va=(a[sortCol]||'').toString().toLowerCase();vb=(b[sortCol]||'').toString().toLowerCase();}
+    return va>vb?sortDir:va<vb?-sortDir:0;
+  });
+  return list;
+}
 
 // ============ TASKS ============
 function renderTasks(){
@@ -527,21 +550,7 @@ function renderTasks(){
     return true;
   });
 
-  const priOrder={'ด่วน':0,'สูง':1,'ปานกลาง':2,'ต่ำ':3};
-  const statOrder={'ยังไม่เริ่ม':0,'วางแผน':1,'เริ่มต้น':2,'กำลังทำ':3,'เสร็จสิ้น':4};
-  filtered.sort((a,b)=>{
-    let va,vb;
-    if(sortCol==='index'){va=tasks.indexOf(a);vb=tasks.indexOf(b);}
-    else if(sortCol==='priority'){va=priOrder[a.priority]??9;vb=priOrder[b.priority]??9;}
-    else if(sortCol==='status'){va=statOrder[a.status]??9;vb=statOrder[b.status]??9;}
-    else if(sortCol==='percent'){va=a.percent||0;vb=b.percent||0;}
-    else if(sortCol==='deadline'||sortCol==='startDate'||sortCol==='completedAt'){
-      va=a[sortCol]?new Date(a[sortCol]).getTime():0;
-      vb=b[sortCol]?new Date(b[sortCol]).getTime():0;
-    }
-    else{va=(a[sortCol]||'').toString().toLowerCase();vb=(b[sortCol]||'').toString().toLowerCase();}
-    return va>vb?sortDir:va<vb?-sortDir:0;
-  });
+  applySort(filtered);
 
   const tbody=document.getElementById('taskTable');
   const empty=document.getElementById('taskEmpty');
@@ -572,6 +581,10 @@ function renderTasks(){
     const completedAt=t.completedAt?`<span style="font-size:12px;color:var(--green)">${t.completedAt}</span>`:'-';
 
     return `<tr>
+      <td class="sticky-col" style="white-space:nowrap">
+        <button class="btn btn-sm btn-ghost" onclick="editTask('${t.id}')">✏️</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteTask('${t.id}')">🗑</button>
+      </td>
       <td style="color:#888">${i+1}</td>
       <td><strong>${t.name}</strong></td>
       <td><span class="badge" style="background:var(--purple-light);color:var(--purple-dark)">${t.category||'-'}</span></td>
@@ -590,10 +603,6 @@ function renderTasks(){
       <td style="white-space:nowrap">${fileCell}</td>
       <td style="white-space:nowrap">${completedAt}</td>
       <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888" title="${t.note||''}">${t.note||'-'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-sm btn-ghost" onclick="editTask('${t.id}')">✏️</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteTask('${t.id}')">🗑</button>
-      </td>
     </tr>`;
   }).join('');
 }
@@ -661,6 +670,20 @@ function addAssigner(){const v=document.getElementById('newAssigner').value.trim
 function deleteAssigner(a){if(confirm('ลบผู้สั่งงาน "'+a+'"?')){assigners=assigners.filter(x=>x!==a);save();renderSettings();}}
 
 // ============ MODAL ============
+function handleStatusChange(){
+  const status=document.getElementById('fStatus').value;
+  const pctInput=document.getElementById('fPct');
+  const lockNote=document.getElementById('fPctLockNote');
+  if(status==='เสร็จสิ้น'){
+    pctInput.value=100;
+    document.getElementById('fPctLbl').textContent='100';
+    pctInput.disabled=true;
+    lockNote.style.display='inline';
+  } else {
+    pctInput.disabled=false;
+    lockNote.style.display='none';
+  }
+}
 function openAddModal(){
   editId=null; currentImageData=null;
   document.getElementById('modalTitle').textContent='เพิ่มงานใหม่';
@@ -681,6 +704,7 @@ function editTask(id){
   document.getElementById('fDeadline').value=t.deadline||'';
   document.getElementById('fPct').value=t.percent||0;
   document.getElementById('fPctLbl').textContent=t.percent||0;
+  handleStatusChange();
   document.getElementById('fFileName').value=t.fileName||'';
   document.getElementById('fNote').value=t.note||'';
   document.getElementById('fLink').value=t.link||'';
@@ -698,6 +722,7 @@ function clearForm(){
   document.getElementById('attachPreview').innerHTML='';
   document.getElementById('fImage').value='';
   currentImageData=null;
+  handleStatusChange();
 }
 function populateModalDropdowns(){
   document.getElementById('fCat').innerHTML='<option value="">-</option>'+categories.map(c=>`<option>${c}</option>`).join('');
@@ -827,9 +852,22 @@ function doPrint(){
   const showTasks=document.getElementById('pdfTasks').checked;
   const showHist=document.getElementById('pdfHistory').checked;
   const ignoreFilter=document.getElementById('pdfIgnoreFilter').checked;
-  const filteredTasks=ignoreFilter ? tasks.slice() : getFilteredTasks();
+  const fullNote=document.getElementById('pdfFullNote').checked;
+  const filteredTasks=applySort(ignoreFilter ? tasks.slice() : getFilteredTasks());
   const filterLabel=ignoreFilter ? 'แสดงทั้งหมด (ไม่ใช้ตัวกรอง)' : buildFilterLabel();
-  const printDate=new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  const now=new Date();
+  const printDate=now.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  const printTime=now.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  const printDateTime=printDate+' เวลา '+printTime+' น.';
+  const NOTE_LIMIT=50;
+  const overflowNotes=[]; // {name, note} for full-note appendix
+
+  function noteCell(t){
+    if(!t.note) return '-';
+    if(t.note.length<=NOTE_LIMIT) return t.note;
+    if(fullNote){ overflowNotes.push({name:t.name, note:t.note}); }
+    return t.note.slice(0,NOTE_LIMIT)+'…'+(fullNote?' <sup style="color:#8989eb">*</sup>':'');
+  }
 
   const old=document.getElementById('printArea'); if(old) old.remove();
   const div=document.createElement('div');
@@ -841,8 +879,9 @@ function doPrint(){
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Sarabun',Arial,sans-serif;font-size:11px;background:#fff;color:#1f1f1f;
          -webkit-font-smoothing:antialiased}
-    .print-page{padding:12mm 12mm 8mm;page-break-after:always}
+    .print-page{padding:12mm 12mm 8mm;page-break-after:always;position:relative}
     .print-page:last-child{page-break-after:auto}
+    .section-tag{position:absolute;top:6mm;right:12mm;font-size:8.5px;color:#aaa}
     h1{color:#5a5ab8;font-size:16px;margin-bottom:3px;font-family:'Sarabun',Arial,sans-serif}
     h2{color:#5a5ab8;font-size:12px;margin:0 0 8px;padding-bottom:5px;border-bottom:2px solid #8989eb;font-family:'Sarabun',Arial,sans-serif}
     h3{color:#5a5ab8;font-size:11px;margin:10px 0 4px;font-family:'Sarabun',Arial,sans-serif}
@@ -867,6 +906,12 @@ function doPrint(){
     .badge-low{color:#11734b}
     .month-head{background:#e8e7fc;color:#5a5ab8;padding:4px 8px;font-weight:700;font-size:10px;margin:10px 0 3px;border-left:4px solid #8989eb}
     .row-overdue td{background:#fff0f0!important}
+    .attach-ico{font-size:10px;margin-left:3px}
+    .note-appendix-item{margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed #ddd}
+    .note-appendix-item b{color:#5a5ab8}
+    .sign-box{display:flex;gap:30px;margin-top:50px}
+    .sign-box .col{flex:1;font-size:10px}
+    .sign-line{margin-top:36px;border-top:1px solid #999;padding-top:4px;color:#888}
     @page{size:A4 landscape;margin:0}
     @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.print-page{page-break-after:always}.print-page:last-child{page-break-after:auto}}
   </style>`;
@@ -880,9 +925,15 @@ function doPrint(){
     const urg=tasks.filter(t=>{if(t.status==='เสร็จสิ้น'||!t.deadline) return false;const d=new Date(t.deadline);d.setHours(0,0,0,0);return Math.round((d-today)/86400000)<=3;}).length;
     const pct=total>0?Math.round(done/total*100):0;
     const urgList=tasks.filter(t=>{if(t.status==='เสร็จสิ้น'||!t.deadline) return false;const d=new Date(t.deadline);d.setHours(0,0,0,0);return Math.round((d-today)/86400000)<=3;}).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline));
+
+    // สรุปงานตามผู้สั่งงาน
+    const aStats={};
+    tasks.forEach(t=>{const a=t.assigner||'ไม่ระบุ';if(!aStats[a])aStats[a]={total:0,done:0};aStats[a].total++;if(t.status==='เสร็จสิ้น')aStats[a].done++;});
+    const aRows=Object.keys(aStats).sort().map(a=>`<tr><td><strong>${a}</strong></td><td style="text-align:center">${aStats[a].total}</td><td style="text-align:center" class="badge-done">${aStats[a].done}</td><td style="text-align:center">${aStats[a].total-aStats[a].done}</td></tr>`).join('');
+
     sections.push(`
       <h1>🐻 MANYBEAR WORK APP</h1>
-      <div class="meta">Dashboard สรุปภาพรวม &nbsp;•&nbsp; พิมพ์วันที่: ${printDate}</div>
+      <div class="meta">Dashboard สรุปภาพรวม &nbsp;•&nbsp; พิมพ์เมื่อ: ${printDateTime}</div>
       <h2>📊 สถิติภาพรวม</h2>
       <div class="stat-row">
         <div class="sbox"><div class="snum">${total}</div><div class="slbl">งานทั้งหมด</div></div>
@@ -897,6 +948,10 @@ function doPrint(){
       urgList.map((t,i)=>{const d=new Date(t.deadline);d.setHours(0,0,0,0);const diff=Math.round((d-today)/86400000);const cls=diff<0?'row-overdue':'';
         return `<tr class="${cls}"><td>${i+1}</td><td><strong>${t.name}</strong></td><td>${t.category||'-'}</td><td>${t.status||'-'}</td><td>${t.assigner||'-'}</td><td>${t.deadline}</td><td style="color:${diff<0?'#b10202':'#c0392b'};font-weight:700">${diff<0?diff+'วัน':'อีก '+diff+' วัน'}</td></tr>`;
       }).join('')+'</tbody></table>':''}
+      <h2 style="margin-top:14px">📋 สรุปงานตามผู้สั่งงาน</h2>
+      <table><colgroup><col style="width:40%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
+      <thead><tr><th>ผู้สั่งงาน</th><th style="text-align:center">งานทั้งหมด</th><th style="text-align:center">เสร็จแล้ว</th><th style="text-align:center">ยังไม่เสร็จ</th></tr></thead>
+      <tbody>${aRows}</tbody></table>
     `);
   }
 
@@ -904,18 +959,20 @@ function doPrint(){
     const today=new Date(); today.setHours(0,0,0,0);
     sections.push(`
       <h1>🐻 MANYBEAR WORK APP</h1>
-      <div class="meta">รายการงาน &nbsp;•&nbsp; พิมพ์วันที่: ${printDate} &nbsp;<span class="filter-tag">${filterLabel}</span> &nbsp;• แสดง ${filteredTasks.length} รายการ</div>
+      <div class="meta">รายการงาน &nbsp;•&nbsp; พิมพ์เมื่อ: ${printDateTime} &nbsp;<span class="filter-tag">${filterLabel}</span> &nbsp;• แสดง ${filteredTasks.length} รายการ${fullNote?' • หมายเหตุยาวดูเพิ่มท้ายเอกสาร (*)':''}</div>
       <h2>🗂️ รายการงานทั้งหมด</h2>
       ${!filteredTasks.length?'<p style="color:#aaa;padding:20px 0">ไม่มีรายการงานที่ตรงกับตัวกรอง</p>':
-      `<table><colgroup><col style="width:3%"><col style="width:20%"><col style="width:7%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:5%"><col style="width:4%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:6%"></colgroup>
-      <thead><tr><th>#</th><th>ชื่องาน</th><th>หมวด</th><th>สถานะ</th><th>ความสำคัญ</th><th>วันเริ่ม</th><th>กำหนดส่ง</th><th>วันเหลือ</th><th>%</th><th>ผู้สั่งงาน</th><th>ชื่อไฟล์</th><th>เสร็จจริงวันที่</th><th>หมายเหตุ</th></tr></thead><tbody>`+
+      `<table><colgroup><col style="width:3%"><col style="width:22%"><col style="width:7%"><col style="width:8%"><col style="width:7%"><col style="width:7%"><col style="width:7%"><col style="width:5%"><col style="width:4%"><col style="width:9%"><col style="width:9%"><col style="width:12%"></colgroup>
+      <thead><tr><th>#</th><th>ชื่องาน</th><th>หมวด</th><th>สถานะ</th><th>ความสำคัญ</th><th>วันเริ่ม</th><th>กำหนดส่ง</th><th>วันเหลือ</th><th>%</th><th>ผู้สั่งงาน</th><th>เสร็จจริงวันที่</th><th>หมายเหตุ</th></tr></thead><tbody>`+
       filteredTasks.map((t,i)=>{
         const priCls={'ด่วน':'badge-urgent','สูง':'badge-high','ปานกลาง':'badge-mid','ต่ำ':'badge-low'}[t.priority]||'';
         const stCls={'เสร็จสิ้น':'badge-done','กำลังทำ':'badge-inprog','ด่วน':'badge-urgent'}[t.status]||'';
         let dayLeft='-';
         if(t.deadline&&t.status!=='เสร็จสิ้น'){const d=new Date(t.deadline);d.setHours(0,0,0,0);const diff=Math.round((d-today)/86400000);dayLeft=`<span style="color:${diff<0?'#b10202':diff<=3?'#c0392b':'#444'};font-weight:${diff<=3?700:400}">${diff}</span>`;}
         const rowCls=t.deadline&&t.status!=='เสร็จสิ้น'&&Math.round((new Date(t.deadline).setHours(0,0,0,0)-today)/86400000)<0?'row-overdue':'';
-        return `<tr class="${rowCls}"><td>${i+1}</td><td><strong>${t.name}</strong></td><td>${t.category||'-'}</td><td class="${stCls}">${t.status||'-'}</td><td class="${priCls}">${t.priority||'-'}</td><td>${t.startDate||'-'}</td><td>${t.deadline||'-'}</td><td style="text-align:center">${dayLeft}</td><td>${t.percent||0}%</td><td>${t.assigner||'-'}</td><td>${t.fileName||'-'}</td><td>${t.completedAt||'-'}</td><td>${t.note||'-'}</td></tr>`;
+        const attach=(t.fileName?'📎':'')+(t.imageData?'🖼️':'');
+        const completedDate=t.completedAt?new Date(t.completedAt).toLocaleDateString('th-TH'):'-';
+        return `<tr class="${rowCls}"><td>${i+1}</td><td><strong>${t.name}</strong>${attach?` <span class="attach-ico" title="${t.fileName||''}">${attach}</span>`:''}</td><td>${t.category||'-'}</td><td class="${stCls}">${t.status||'-'}</td><td class="${priCls}">${t.priority||'-'}</td><td>${t.startDate||'-'}</td><td>${t.deadline||'-'}</td><td style="text-align:center">${dayLeft}</td><td>${t.percent||0}%</td><td>${t.assigner||'-'}</td><td>${completedDate}</td><td>${noteCell(t)}</td></tr>`;
       }).join('')+'</tbody></table>'}
     `);
   }
@@ -928,12 +985,12 @@ function doPrint(){
       <div class="month-head">${g[k].label} — ${g[k].tasks.length} งาน</div>
       <table><colgroup><col style="width:4%"><col style="width:28%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:18%"></colgroup>
       <thead><tr><th>#</th><th>ชื่องาน</th><th>หมวด</th><th>สถานะ</th><th>ความสำคัญ</th><th>ผู้สั่งงาน</th><th>กำหนดส่ง</th><th>เสร็จจริงวันที่</th></tr></thead><tbody>`+
-      g[k].tasks.map((t,i)=>`<tr><td>${i+1}</td><td><strong>${t.name}</strong></td><td>${t.category||'-'}</td><td class="badge-done">${t.status}</td><td>${t.priority||'-'}</td><td>${t.assigner||'-'}</td><td>${t.deadline||'-'}</td><td class="badge-done">${t.completedAt||'-'}</td></tr>`).join('')+
+      g[k].tasks.map((t,i)=>`<tr><td>${i+1}</td><td><strong>${t.name}</strong></td><td>${t.category||'-'}</td><td class="badge-done">${t.status}</td><td>${t.priority||'-'}</td><td>${t.assigner||'-'}</td><td>${t.deadline||'-'}</td><td class="badge-done">${t.completedAt?new Date(t.completedAt).toLocaleDateString('th-TH'):'-'}</td></tr>`).join('')+
       '</tbody></table>'
     ).join('');
     sections.push(`
       <h1>🐻 MANYBEAR WORK APP</h1>
-      <div class="meta">History รายเดือน &nbsp;•&nbsp; พิมพ์วันที่: ${printDate} &nbsp;•&nbsp; งานเสร็จสิ้น ${done2.length} รายการ</div>
+      <div class="meta">History รายเดือน &nbsp;•&nbsp; พิมพ์เมื่อ: ${printDateTime} &nbsp;•&nbsp; งานเสร็จสิ้น ${done2.length} รายการ</div>
       <h2>📅 ประวัติงานที่เสร็จสิ้น (รายเดือน)</h2>
       ${done2.length===0?'<p style="color:#aaa;padding:20px 0">ยังไม่มีงานเสร็จสิ้น</p>':histHtml}
     `);
@@ -941,7 +998,24 @@ function doPrint(){
 
   if(sections.length===0){alert('กรุณาเลือกอย่างน้อยหนึ่งหน้า');return;}
 
-  const fullHtml=css+sections.map(s=>`<div class="print-page">${s}</div>`).join('');
+  // หน้าหมายเหตุแบบเต็ม (ถ้าเลือกไว้ และมีหมายเหตุที่ถูกตัด)
+  if(fullNote && overflowNotes.length){
+    sections.push(`
+      <h1>🐻 MANYBEAR WORK APP</h1>
+      <div class="meta">หมายเหตุแบบเต็ม &nbsp;•&nbsp; พิมพ์เมื่อ: ${printDateTime}</div>
+      <h2>📝 หมายเหตุฉบับเต็ม (${overflowNotes.length} รายการ)</h2>
+      ${overflowNotes.map(o=>`<div class="note-appendix-item"><b>${o.name}</b><div style="margin-top:3px">${o.note}</div></div>`).join('')}
+    `);
+  }
+
+  // ช่องลงชื่อรับทราบ — แนบไว้ท้ายเอกสารส่วนสุดท้าย (ไม่ขึ้นหน้าใหม่)
+  sections[sections.length-1] += `
+    <div class="sign-box">
+      <div class="col">ผู้จัดทำ<div class="sign-line">ลงชื่อ.......................................... วันที่........../........../...........</div></div>
+      <div class="col">ผู้ตรวจสอบ/รับทราบ<div class="sign-line">ลงชื่อ.......................................... วันที่........../........../...........</div></div>
+    </div>`;
+
+  const fullHtml=css+sections.map((s,i)=>`<div class="print-page"><span class="section-tag">ส่วนที่ ${i+1}/${sections.length}</span>${s}</div>`).join('');
   div.innerHTML=fullHtml;
   document.body.appendChild(div);
   div.style.display='block';
